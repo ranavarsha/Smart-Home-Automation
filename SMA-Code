@@ -1,0 +1,77 @@
+#include <WiFi.h>
+#include <SPI.h>
+#include <MFRC522.h>
+#include <DHT.h>
+
+#define RST_PIN  4
+#define SS_PIN   5
+MFRC522 rfid(SS_PIN, RST_PIN);
+
+#define DHTPIN 15
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+#define PIR_PIN 14
+#define RELAY_PIN 27
+#define LED1 26
+#define LED2 25
+
+String authorizedUID = "A1 B2 C3 D4"; // Replace with your card UID
+
+void setup() {
+  Serial.begin(115200);
+  SPI.begin();
+  rfid.PCD_Init();
+
+  dht.begin();
+
+  pinMode(PIR_PIN, INPUT);
+  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(LED1, OUTPUT);
+  pinMode(LED2, OUTPUT);
+}
+
+void loop() {
+  // RFID Detection
+  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+    String uid = "";
+    for (byte i = 0; i < rfid.uid.size; i++) {
+      uid += String(rfid.uid.uidByte[i], HEX);
+      if (i != rfid.uid.size - 1) uid += " ";
+    }
+
+    Serial.print("Card UID: ");
+    Serial.println(uid);
+
+    if (uid == authorizedUID) {
+      Serial.println("Access Granted");
+      digitalWrite(RELAY_PIN, HIGH); // Turn ON Appliance
+      digitalWrite(LED1, HIGH);
+    } else {
+      Serial.println("Access Denied");
+      digitalWrite(RELAY_PIN, LOW);
+      digitalWrite(LED1, LOW);
+    }
+
+    rfid.PICC_HaltA();
+    delay(1000);
+  }
+
+  // DHT Sensor
+  float temp = dht.readTemperature();
+  float hum = dht.readHumidity();
+  if (!isnan(temp) && !isnan(hum)) {
+    Serial.print("Temp: "); Serial.print(temp);
+    Serial.print(" °C, Humidity: "); Serial.println(hum);
+  }
+
+  // Motion Detection
+  if (digitalRead(PIR_PIN) == HIGH) {
+    Serial.println("Motion Detected! Turning on LED2");
+    digitalWrite(LED2, HIGH);
+  } else {
+    digitalWrite(LED2, LOW);
+  }
+
+  delay(2000);
+}
